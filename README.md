@@ -19,7 +19,7 @@ The objective of the game is very simple - guide balls into matching holes using
 ## Game Preview
 ![Inkball screenshot](game_preview.png)
 
-## 🛠 Getting Started
+## Getting Started
 1. Clone this repository
 2. Ensure that you have **Java 8+**, Processing, and Gradle installed. You can check your Java version by running java -version.
 
