@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Hole.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">inkball_refactor_A3_LASTWORKING</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">Hole.java</span></div><h1>Hole.java</h1><pre class="source lang-java linenums">package inkball;
+
+import processing.core.PImage;
+import processing.core.PApplet;
+
+public class Hole extends Tile {
+    private int colorIndex; // Color of the hole
+
+    public Hole(int x, int y, int colorIndex, PImage sprite) {
+<span class="fc" id="L10">        super(x, y, sprite);</span>
+<span class="fc" id="L11">        this.colorIndex = colorIndex;</span>
+<span class="fc" id="L12">    }</span>
+
+    public float getCenterX(App app) {
+<span class="fc" id="L15">        return x * app.CELLSIZE + app.CELLSIZE;</span>
+    }
+
+    public float getCenterY(App app) {
+<span class="fc" id="L19">        return y * app.CELLSIZE + app.TOPBAR + app.CELLSIZE;</span>
+    }
+
+    public int getColorIndex() {
+<span class="fc" id="L23">        return colorIndex;</span>
+    }
+
+    // Draw the hole in a 2x2 grid
+    public void draw(PApplet app, int cellSize, int topBar) {
+<span class="fc" id="L28">        app.image(sprite, x * cellSize, y * cellSize + topBar, cellSize*2, cellSize*2);            // Top-left</span>
+<span class="fc" id="L29">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.9.202303310957</span></div></body></html>

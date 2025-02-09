@@ -1,0 +1,819 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>App.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">inkball_refactor_A3_LASTWORKING</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">App.java</span></div><h1>App.java</h1><pre class="source lang-java linenums">package inkball;
+
+import processing.core.PApplet;
+import processing.core.PImage;
+import processing.data.JSONArray;
+import processing.data.JSONObject;
+import processing.event.KeyEvent;
+import processing.event.MouseEvent;
+import java.util.*;
+
+public class App extends PApplet {
+
+    public static final int CELLSIZE = 32; // Size of each tile
+    public static final int TOPBAR = 64; // 64
+<span class="fc" id="L15">    public static int WIDTH = 576; // Window width (576 = 18 * 32)</span>
+<span class="fc" id="L16">    public static int HEIGHT = 640; // Window height (576 + 64 for top bar)</span>
+    public static final int FPS = 30; // 30 default
+
+<span class="fc" id="L19">    private int score = 0;</span>
+    private int remainingTime;
+<span class="fc" id="L21">    private boolean isTimeUp = false;</span>
+<span class="fc" id="L22">    boolean isLevelFailed = false;</span>
+    private boolean isTimeDraining;
+<span class="fc" id="L24">    private boolean isGameEnded = false;</span>
+
+<span class="fc" id="L26">    boolean victoryInProgress = false;</span>
+<span class="fc" id="L27">    private boolean isTimeDrained = false;</span>
+<span class="fc" id="L28">    private boolean isVictoryAnimationComplete = false;</span>
+<span class="fc" id="L29">    private int victoryframeCounter = 0;</span>
+<span class="fc" id="L30">    private int topLeftStep = 0; // Tracks movement of the first victory tile</span>
+<span class="fc" id="L31">    private int bottomRightStep = 0; // Tracks movement of the second victory tile</span>
+
+<span class="fc" id="L33">    private int currentLevel = 1;</span>
+
+    private double scoreIncreaseModifier;
+    private double scoreDecreaseModifier;
+
+    public String configPath;
+    private JSONObject config;
+<span class="fc" id="L40">    boolean isPaused = false;</span>
+<span class="fc" id="L41">    private int scoreAtLevelStart = 0;</span>
+    private PausedMessage pausedMessage;
+    private EndMessage endMessage;
+    private TimeUpMessage timeUpMessage;
+
+    // Sprites
+<span class="fc" id="L47">    private HashMap&lt;String, PImage&gt; sprites = new HashMap&lt;&gt;(); // Name : PImage</span>
+    public List&lt;TimedTile&gt; timedTiles;
+
+    // Gameboard
+    public char[][] board;
+
+    public List&lt;Hole&gt; holes;
+    public List&lt;Ball&gt; balls;
+    public List&lt;Spawner&gt; spawners;
+
+    // Spawn-related fields
+    public List&lt;String&gt; ballSpawnQueue;
+    public int SPAWNINTERVAL;
+    public int SPAWNTIMER;
+
+    // For ballSpawnQueue UI:
+<span class="fc" id="L63">    private int offsetX = 0; // variable for animating the gradual shift in the ball Queue</span>
+<span class="fc" id="L64">    private boolean isShifting = false;</span>
+<span class="fc" id="L65">    boolean drawEventOngoing = false;</span>
+    float oldX, oldY;
+    private List&lt;Squiggle&gt; squiggles;
+<span class="fc" id="L68">    Squiggle currentSquiggle = null;</span>
+<span class="fc" id="L69">    private int drawLimitCounter = 0;</span>
+<span class="fc" id="L70">    int squigglesPerFrameCap = 5;</span>
+
+<span class="fc" id="L72">    public App() {</span>
+<span class="fc" id="L73">        this.configPath = &quot;config.json&quot;;</span>
+<span class="fc" id="L74">    }</span>
+
+    @Override
+    public void settings() {
+<span class="fc" id="L78">        size(WIDTH, HEIGHT);</span>
+<span class="fc" id="L79">    }</span>
+
+    @Override
+    public void setup() {
+<span class="fc" id="L83">        frameRate(FPS);</span>
+<span class="fc" id="L84">        loadSprites(); // Load the sprites</span>
+<span class="fc" id="L85">        holes = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L86">        balls = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L87">        ballSpawnQueue = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L88">        spawners = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L89">        squiggles = new ArrayList&lt;&gt;();</span>
+<span class="fc" id="L90">        timedTiles = new ArrayList&lt;&gt;();</span>
+
+<span class="fc" id="L92">        isPaused = false;</span>
+<span class="fc" id="L93">        isTimeUp = false;</span>
+<span class="fc" id="L94">        isLevelFailed = false;</span>
+<span class="fc" id="L95">        isTimeDraining = false;</span>
+<span class="fc" id="L96">        isTimeDrained = false;</span>
+<span class="fc" id="L97">        isVictoryAnimationComplete = false;</span>
+<span class="fc" id="L98">        victoryInProgress = false;</span>
+<span class="fc" id="L99">        isGameEnded = false;</span>
+<span class="fc" id="L100">        squiggles.clear(); // Clear existing squiggles</span>
+<span class="fc" id="L101">        currentSquiggle = null; // Reset current squiggle</span>
+<span class="fc" id="L102">        drawEventOngoing = false; // Ensure no ongoing drawing events</span>
+<span class="fc" id="L103">        pausedMessage = new PausedMessage(WIDTH / 2 - 100, TOPBAR / 2 - 20, 200, 40);</span>
+<span class="fc" id="L104">        endMessage = new EndMessage(WIDTH / 2 - 100, TOPBAR / 2 - 20, 200, 40);</span>
+<span class="fc" id="L105">        timeUpMessage = new TimeUpMessage(WIDTH / 2 - 100, TOPBAR / 2 - 20, 200, 40);</span>
+<span class="fc" id="L106">        scoreAtLevelStart = score;</span>
+<span class="fc" id="L107">        offsetX = 0;</span>
+<span class="fc" id="L108">        isShifting = false;</span>
+
+        // Load the config and the level corresponding to currentLevel
+<span class="fc" id="L111">        config = loadJSONObject(configPath); // parse level 1 data from config.</span>
+<span class="fc" id="L112">        loadConfigForLevel(currentLevel);</span>
+<span class="fc" id="L113">        String levelFile = getLevelFilePath(currentLevel);</span>
+<span class="fc" id="L114">        loadLevel(levelFile);</span>
+<span class="fc" id="L115">    }</span>
+
+    private void loadSprites() {
+        // Load wall sprites using relative paths
+<span class="fc bfc" id="L119" title="All 2 branches covered.">        for (int i = 0; i &lt;= 4; i++) {</span>
+<span class="fc" id="L120">            sprites.put(&quot;wall&quot; + i, loadImage(&quot;src/main/resources/inkball/wall&quot; + i + &quot;.png&quot;));</span>
+        }
+
+        // Load spawner sprite
+<span class="fc" id="L124">        sprites.put(&quot;entrypoint&quot;, loadImage(&quot;src/main/resources/inkball/entrypoint.png&quot;));</span>
+
+        // Load ball and hole sprites
+<span class="fc bfc" id="L127" title="All 2 branches covered.">        for (int i = 0; i &lt;= 4; i++) {</span>
+<span class="fc" id="L128">            sprites.put(&quot;ball&quot; + i, loadImage(&quot;src/main/resources/inkball/ball&quot; + i + &quot;.png&quot;));</span>
+<span class="fc" id="L129">            sprites.put(&quot;hole&quot; + i, loadImage(&quot;src/main/resources/inkball/hole&quot; + i + &quot;.png&quot;));</span>
+        }
+
+        // Load tile sprite
+<span class="fc" id="L133">        sprites.put(&quot;tile&quot;, loadImage(&quot;src/main/resources/inkball/tile.png&quot;));</span>
+<span class="fc" id="L134">    }</span>
+
+    public void loadConfigForLevel(int level) {
+<span class="fc" id="L137">        JSONArray levels = config.getJSONArray(&quot;levels&quot;);</span>
+
+<span class="fc bfc" id="L139" title="All 2 branches covered.">        if (level &lt;= levels.size()) {</span>
+<span class="fc" id="L140">            JSONObject levelConfig = levels.getJSONObject(level - 1); // Level config</span>
+
+            // Extract ball colors for the current level
+<span class="fc" id="L143">            JSONArray ballColors = levelConfig.getJSONArray(&quot;balls&quot;);</span>
+<span class="fc bfc" id="L144" title="All 2 branches covered.">            for (int i = 0; i &lt; ballColors.size(); i++) {</span>
+<span class="fc" id="L145">                ballSpawnQueue.add(ballColors.getString(i));</span>
+            }
+
+<span class="fc" id="L148">            remainingTime = levelConfig.getInt(&quot;time&quot;) * FPS;</span>
+<span class="fc" id="L149">            SPAWNINTERVAL = levelConfig.getInt(&quot;spawn_interval&quot;);</span>
+<span class="fc" id="L150">            SPAWNTIMER = SPAWNINTERVAL * FPS;</span>
+<span class="fc" id="L151">            scoreIncreaseModifier = levelConfig.getDouble(&quot;score_increase_from_hole_capture_modifier&quot;);</span>
+<span class="fc" id="L152">            scoreDecreaseModifier = levelConfig.getDouble(&quot;score_decrease_from_wrong_hole_modifier&quot;);</span>
+
+<span class="fc" id="L154">            System.out.println(&quot;Level &quot; + level + &quot; loaded with &quot; + remainingTime / FPS + &quot; seconds.&quot;);</span>
+<span class="fc" id="L155">        } else {</span>
+<span class="fc" id="L156">            System.out.println(&quot;No more levels available.&quot;);</span>
+        }
+<span class="fc" id="L158">    }</span>
+
+    String getLevelFilePath(int level) {
+<span class="fc" id="L161">        JSONArray levels = config.getJSONArray(&quot;levels&quot;);</span>
+
+<span class="fc bfc" id="L163" title="All 2 branches covered.">        if (level &lt;= levels.size()) {</span>
+<span class="fc" id="L164">            return levels.getJSONObject(level - 1).getString(&quot;layout&quot;);</span>
+        } else {
+<span class="fc" id="L166">            System.out.println(&quot;No more levels to load.&quot;);</span>
+<span class="fc" id="L167">            return null; // Handle end of game</span>
+        }
+    }
+
+    void loadLevel(String levelFilePath) {
+        // Load the level file and initialize the board
+<span class="pc bpc" id="L173" title="1 of 2 branches missed.">        if (levelFilePath == null) {</span>
+<span class="nc" id="L174">            return;</span>
+        }
+
+<span class="fc" id="L177">        String[] lines = loadStrings(levelFilePath); // loadStrings (PApplet method) returns String[] of all the lines</span>
+                                                     // in level1.txt
+<span class="fc" id="L179">        board = new char[18][18];</span>
+
+<span class="fc bfc" id="L181" title="All 2 branches covered.">        for (int row = 0; row &lt; lines.length; row++) {</span>
+<span class="fc bfc" id="L182" title="All 2 branches covered.">            for (int col = 0; col &lt; lines[row].length(); col++) {</span>
+<span class="fc" id="L183">                char tileChar = lines[row].charAt(col);</span>
+<span class="fc" id="L184">                board[row][col] = tileChar;</span>
+
+<span class="fc bfc" id="L186" title="All 2 branches covered.">                if (tileChar == 'T') {</span>
+<span class="fc" id="L187">                    PImage sprite = getSprite(&quot;wall0&quot;); // Use grey wall sprite for all timed tiles</span>
+<span class="fc" id="L188">                    timedTiles.add(new TimedTile(col, row, sprite)); // Add to timed tiles list</span>
+<span class="fc" id="L189">                }</span>
+
+<span class="fc bfc" id="L191" title="All 2 branches covered.">                else if (tileChar == 'H') {</span>
+<span class="fc" id="L192">                    char holeColor = lines[row].charAt(col + 1); // e.g., H1 means hole1</span>
+<span class="fc" id="L193">                    PImage holeSprite = getSprite(&quot;hole&quot; + holeColor);</span>
+                    // Create a new Hole object and add it to the list
+<span class="fc" id="L195">                    holes.add(new Hole(col, row, Character.getNumericValue(holeColor), holeSprite));</span>
+<span class="fc" id="L196">                    col++; // Skip the color number character</span>
+<span class="pc bpc" id="L197" title="1 of 2 branches missed.">                } else if (tileChar == 'B') {</span>
+<span class="nc" id="L198">                    char ballColor = lines[row].charAt(col + 1); // e.g., B2 means ball2</span>
+<span class="nc" id="L199">                    int colorIndex = Character.getNumericValue(ballColor);</span>
+<span class="nc" id="L200">                    PImage ballSprite = getSprite(&quot;ball&quot; + ballColor);</span>
+
+                    // Place the ball directly at the given coordinates
+<span class="nc" id="L203">                    float ballX = col * CELLSIZE + CELLSIZE / 2;</span>
+<span class="nc" id="L204">                    float ballY = row * CELLSIZE + CELLSIZE / 2 + TOPBAR;</span>
+
+                    // Generate random initial velocities (-2 or 2)
+<span class="nc bnc" id="L207" title="All 2 branches missed.">                    float randomDx = Math.random() &lt; 0.5 ? -2 : 2;</span>
+<span class="nc bnc" id="L208" title="All 2 branches missed.">                    float randomDy = Math.random() &lt; 0.5 ? -2 : 2;</span>
+<span class="nc" id="L209">                    balls.add(new Ball(ballX, ballY, randomDx, randomDy, ballSprite, colorIndex, this));</span>
+<span class="nc" id="L210">                    col++; // Skip the color number character</span>
+<span class="pc bfc" id="L211" title="All 2 branches covered.">                } else if (tileChar == 'S') {</span>
+                    // Create a new Spawner object and add it to its corresponding object list:
+<span class="fc" id="L213">                    Spawner spawner = new Spawner(this, col, row, getSprite(&quot;entrypoint&quot;));</span>
+<span class="fc" id="L214">                    spawners.add(spawner);</span>
+                }
+            }
+        }
+<span class="fc" id="L218">    }</span>
+
+    // simple getter off our HashMap
+    public PImage getSprite(String string) {
+<span class="fc" id="L222">        return sprites.get(string);</span>
+    }
+
+    public char[][] getBoard() {
+<span class="fc" id="L226">        return board;</span>
+    }
+
+    public int getScore() {
+<span class="fc" id="L230">        return score;</span>
+    }
+
+    public boolean getVictoryInProgress() {
+<span class="fc" id="L234">        return victoryInProgress;</span>
+    }
+
+    public boolean isVictoryAnimationComplete() {
+<span class="fc" id="L238">        return isVictoryAnimationComplete;</span>
+    }
+
+    public boolean isGameEnded() {
+<span class="fc" id="L242">        return isGameEnded;</span>
+    }
+
+    public boolean isPaused() {
+<span class="fc" id="L246">        return isPaused;</span>
+    }
+
+    public boolean isTimeDrained() {
+<span class="nc" id="L250">        return isTimeDrained;</span>
+    }
+
+    public int getCurrentLevel() {
+<span class="fc" id="L254">        return currentLevel;</span>
+    }
+
+    public Squiggle getCurrentSqiggle() {
+<span class="fc" id="L258">        return currentSquiggle;</span>
+    }
+
+    public List&lt;Squiggle&gt; getSquiggles() {
+<span class="fc" id="L262">        return squiggles;</span>
+    }
+
+    public boolean isLevelComplete() {
+<span class="fc bfc" id="L266" title="All 4 branches covered.">        return ballSpawnQueue.isEmpty() &amp;&amp; balls.isEmpty();</span>
+    }
+
+    public int getScoreIncrease(int colorIndex) {
+<span class="fc" id="L270">        String colorName = getColorName(colorIndex);</span>
+<span class="fc" id="L271">        int baseScoreChange = config.getJSONObject(&quot;score_increase_from_hole_capture&quot;).getInt(colorName);</span>
+<span class="fc" id="L272">        return (int) (baseScoreChange * scoreIncreaseModifier);</span>
+    }
+
+    public int getScoreDecrease(int colorIndex) {
+<span class="fc" id="L276">        String colorName = getColorName(colorIndex);</span>
+<span class="fc" id="L277">        int baseScoreChange = config.getJSONObject(&quot;score_decrease_from_wrong_hole&quot;).getInt(colorName);</span>
+<span class="fc" id="L278">        return (int) (baseScoreChange * scoreDecreaseModifier);</span>
+    }
+
+    public JSONObject getConfig() {
+<span class="fc" id="L282">        return config;</span>
+    }
+
+    private String getColorName(int colorIndex) {
+<span class="pc bpc" id="L286" title="3 of 6 branches missed.">        switch (colorIndex) {</span>
+            case 0:
+<span class="nc" id="L288">                return &quot;grey&quot;;</span>
+            case 1:
+<span class="fc" id="L290">                return &quot;orange&quot;;</span>
+            case 2:
+<span class="nc" id="L292">                return &quot;blue&quot;;</span>
+            case 3:
+<span class="fc" id="L294">                return &quot;green&quot;;</span>
+            case 4:
+<span class="fc" id="L296">                return &quot;yellow&quot;;</span>
+            default:
+<span class="nc" id="L298">                return null;</span>
+        }
+    }
+
+    public void requeueBall(int colorIndex) {
+<span class="fc" id="L303">        String colorName = getColorName(colorIndex);</span>
+<span class="fc" id="L304">        boolean wasEmpty = ballSpawnQueue.isEmpty();</span>
+<span class="fc" id="L305">        ballSpawnQueue.add(colorName);</span>
+<span class="fc bfc" id="L306" title="All 2 branches covered.">        if (wasEmpty) {</span>
+            // If the queue was empty, reset the spawn timer to avoid instant spawn
+<span class="fc" id="L308">            SPAWNTIMER = SPAWNINTERVAL * FPS;</span>
+        }
+<span class="fc" id="L310">    }</span>
+
+    public void addScore(int amount) {
+<span class="fc" id="L313">        score += amount;</span>
+<span class="fc" id="L314">        System.out.println(&quot;Score increased by &quot; + amount + &quot;. Total score: &quot; + score);</span>
+<span class="fc" id="L315">    }</span>
+
+    public void subtractScore(int amount) {
+<span class="fc" id="L318">        score -= amount;</span>
+<span class="pc bpc" id="L319" title="1 of 2 branches missed.">        if (score &lt; 0) {</span>
+<span class="fc" id="L320">            score = 0; // Ensure the score never goes negative</span>
+        }
+<span class="fc" id="L322">        System.out.println(&quot;Score decreased by &quot; + amount + &quot;. Total score: &quot; + score);</span>
+<span class="fc" id="L323">    }</span>
+
+    @Override
+    public void mousePressed(MouseEvent e) {
+<span class="pc bpc" id="L327" title="1 of 2 branches missed.">        if (isLevelFailed)</span>
+<span class="nc" id="L328">            return;</span>
+<span class="pc bpc" id="L329" title="1 of 2 branches missed.">        if (mouseButton == RIGHT) {</span>
+<span class="nc" id="L330">            removeSquiggleAt(mouseX, mouseY);</span>
+<span class="nc" id="L331">            return; // Exit to prevent left-click logic from running</span>
+        }
+
+<span class="pc bpc" id="L334" title="1 of 2 branches missed.">        if (victoryInProgress)</span>
+<span class="nc" id="L335">            return;</span>
+
+<span class="pc bpc" id="L337" title="1 of 2 branches missed.">        boolean clickedLeft = (mouseButton == LEFT);</span>
+<span class="pc bpc" id="L338" title="1 of 2 branches missed.">        if (!clickedLeft)</span>
+<span class="fc" id="L339">            return; // Only respond to left-clicks</span>
+<span class="nc" id="L340">        drawEventOngoing = true; // initiate a draw event</span>
+<span class="nc" id="L341">        oldX = mouseX;</span>
+<span class="nc" id="L342">        oldY = mouseY;</span>
+
+        // Create a new squiggle and add the initial point where the mouse is pressed
+<span class="nc" id="L345">        currentSquiggle = new Squiggle();</span>
+<span class="nc" id="L346">        currentSquiggle.addPoint(mouseX, mouseY);</span>
+<span class="nc" id="L347">        squiggles.add(currentSquiggle);</span>
+<span class="nc" id="L348">    }</span>
+
+    @Override
+    public void mouseDragged(MouseEvent e) {
+<span class="fc bfc" id="L352" title="All 4 branches covered.">        if (victoryInProgress || isLevelFailed)</span>
+<span class="fc" id="L353">            return;</span>
+<span class="pc bpc" id="L354" title="1 of 2 branches missed.">        boolean clickedLeft = (mouseButton == LEFT);</span>
+<span class="pc bpc" id="L355" title="5 of 6 branches missed.">        if (clickedLeft &amp;&amp; drawEventOngoing &amp;&amp; currentSquiggle != null) {</span>
+<span class="nc bnc" id="L356" title="All 2 branches missed.">            if (drawLimitCounter &lt; squigglesPerFrameCap) {</span>
+                // Only add a new point if the mouse has moved a significant distance
+<span class="nc bnc" id="L358" title="All 2 branches missed.">                if (PApplet.dist(oldX, oldY, mouseX, mouseY) &gt; 5) { // Threshold to reduce points</span>
+<span class="nc" id="L359">                    currentSquiggle.addPoint(mouseX, mouseY);</span>
+<span class="nc" id="L360">                    oldX = mouseX;</span>
+<span class="nc" id="L361">                    oldY = mouseY;</span>
+<span class="nc" id="L362">                    drawLimitCounter++; // Increment counter for each new segment</span>
+
+                }
+            }
+        }
+<span class="fc" id="L367">    }</span>
+
+    @Override
+    public void mouseReleased(MouseEvent e) {
+<span class="fc" id="L371">        drawEventOngoing = false;</span>
+<span class="fc" id="L372">        currentSquiggle = null; // Clear the current squiggle reference</span>
+<span class="fc" id="L373">    }</span>
+
+    @Override
+    public void keyPressed(KeyEvent event) {
+<span class="fc bfc" id="L377" title="All 2 branches covered.">        if (event.getKey() == 'r') {</span>
+<span class="pc bpc" id="L378" title="1 of 4 branches missed.">            if (!victoryInProgress &amp;&amp; currentLevel &gt; config.getJSONArray(&quot;levels&quot;).size()) {</span>
+                // Game has ended, reset everything to start from level 1
+<span class="fc" id="L380">                score = 0; // Reset the score</span>
+<span class="fc" id="L381">                currentLevel = 1; // Start from level 1</span>
+<span class="fc" id="L382">                victoryInProgress = false; // Ensure victory mode is off</span>
+<span class="fc" id="L383">                setup(); // Re-initialize the game</span>
+            } else {
+                // Reset the current level if the game is still in progress
+<span class="fc" id="L386">                score = scoreAtLevelStart; // Reset score to the level start score</span>
+<span class="fc" id="L387">                setup(); // Reload the current level</span>
+            }
+<span class="pc bpc" id="L389" title="1 of 2 branches missed.">        } else if (event.getKey() == ' ') {</span>
+<span class="pc bpc" id="L390" title="3 of 4 branches missed.">            if (!isGameEnded || !isLevelFailed) {</span>
+<span class="fc bfc" id="L391" title="All 2 branches covered.">                isPaused = !isPaused;</span>
+            } // Toggle pause state
+<span class="fc" id="L393">            synchronized (this) {</span>
+<span class="fc bfc" id="L394" title="All 2 branches covered.">                if (!isPaused) {</span>
+<span class="fc" id="L395">                    notify(); // Resume the drainTimeIntoScore thread</span>
+                }
+<span class="fc" id="L397">            }</span>
+        }
+<span class="fc" id="L399">    }</span>
+
+    void removeSquiggleAt(float x, float y) {
+<span class="pc bpc" id="L402" title="1 of 2 branches missed.">        for (int i = squiggles.size() - 1; i &gt;= 0; i--) {</span>
+<span class="nc" id="L403">            Squiggle squiggle = squiggles.get(i);</span>
+<span class="nc bnc" id="L404" title="All 2 branches missed.">            if (squiggle.containsPoint(x, y)) {</span>
+<span class="nc" id="L405">                squiggles.remove(i);</span>
+<span class="nc" id="L406">                break; // Remove only the first squiggle found</span>
+            }
+        }
+<span class="fc" id="L409">    }</span>
+
+    void updateTimer() {
+<span class="fc" id="L412">        System.out.println(&quot;updateTimer() running. Time: &quot; + remainingTime);</span>
+<span class="fc bfc" id="L413" title="All 6 branches covered.">        if (isPaused || isTimeDraining || isLevelFailed)</span>
+<span class="fc" id="L414">            return;</span>
+<span class="fc bfc" id="L415" title="All 2 branches covered.">        if (remainingTime &gt; 0) {</span>
+<span class="fc" id="L416">            remainingTime--;</span>
+        }
+
+<span class="fc bfc" id="L419" title="All 2 branches covered.">        if (remainingTime &lt; FPS) {</span>
+<span class="fc" id="L420">            isTimeUp = true;</span>
+<span class="fc" id="L421">            isLevelFailed = true;</span>
+            // System.out.println(&quot;Time's up flag triggered.&quot;);
+        }
+<span class="fc" id="L424">    }</span>
+
+    @Override
+    public void draw() {
+<span class="fc" id="L428">        background(200, 200, 200); // Set background color</span>
+<span class="fc" id="L429">        drawLimitCounter = 0;</span>
+
+<span class="fc" id="L431">        drawBoard(); // Draw the game board --&gt; 1x1 tiles</span>
+
+        // Draw &amp; update all spawners
+<span class="fc bfc" id="L434" title="All 2 branches covered.">        for (Spawner spawner : spawners) {</span>
+<span class="fc" id="L435">            spawner.draw(this, CELLSIZE, TOPBAR);</span>
+<span class="fc" id="L436">        }</span>
+
+        // Draw all holes
+<span class="fc bfc" id="L439" title="All 2 branches covered.">        for (Hole hole : holes) {</span>
+<span class="fc" id="L440">            hole.draw(this, CELLSIZE, TOPBAR);</span>
+
+            // Attract balls towards each hole
+<span class="fc bfc" id="L443" title="All 2 branches covered.">            for (int i = balls.size() - 1; i &gt;= 0; i--) {</span>
+<span class="fc" id="L444">                Ball ball = balls.get(i);</span>
+<span class="fc" id="L445">                ball.attractToHole(hole); // Apply attraction logic</span>
+            }
+<span class="fc" id="L447">        }</span>
+        // Draw and update timed tiles
+<span class="fc bfc" id="L449" title="All 2 branches covered.">        for (TimedTile tile : timedTiles) {</span>
+<span class="fc bfc" id="L450" title="All 6 branches covered.">            if (!isPaused &amp;&amp; !isLevelComplete() &amp;&amp; !isLevelFailed) {</span>
+<span class="fc" id="L451">                tile.updateAlpha();</span>
+            } // Update alpha value}
+<span class="fc" id="L453">            tile.draw(this, CELLSIZE, TOPBAR); // Draw the tile</span>
+<span class="fc" id="L454">        }</span>
+
+<span class="fc" id="L456">        drawTopBar();</span>
+<span class="pc bpc" id="L457" title="2 of 6 branches missed.">        if (isPaused &amp;&amp; !isLevelFailed &amp;&amp; !isGameEnded) {</span>
+<span class="fc" id="L458">            pausedMessage.draw(this);</span>
+        } else {
+            // Draw the top bar including the spawn queue and timer
+<span class="fc" id="L461">            handleSpawning();</span>
+<span class="fc bfc" id="L462" title="All 2 branches covered.">            if (!isLevelComplete()) {</span>
+<span class="fc" id="L463">                updateTimer();</span>
+            }
+        }
+
+<span class="pc bpc" id="L467" title="1 of 4 branches missed.">        if (victoryInProgress &amp;&amp; !isVictoryAnimationComplete) {</span>
+            // **Update and draw victory tiles**
+<span class="fc" id="L469">            updateVictoryTiles();</span>
+<span class="fc" id="L470">            drawVictoryTiles();</span>
+        }
+
+<span class="fc bfc" id="L473" title="All 2 branches covered.">        if (!isLevelComplete()) {</span>
+            // Squiggle removal logic:
+<span class="fc bfc" id="L475" title="All 2 branches covered.">            if (!isLevelFailed) {</span>
+<span class="pc bpc" id="L476" title="1 of 2 branches missed.">                for (int i = squiggles.size() - 1; i &gt;= 0; i--) {</span>
+<span class="nc" id="L477">                    Squiggle squiggle = squiggles.get(i);</span>
+<span class="nc bnc" id="L478" title="All 2 branches missed.">                    if (squiggle.isRemoved()) {</span>
+<span class="nc bnc" id="L479" title="All 2 branches missed.">                        if (squiggle == currentSquiggle) {</span>
+<span class="nc" id="L480">                            currentSquiggle = null; // Clear the reference if the current line was removed</span>
+                        }
+<span class="nc" id="L482">                        squiggles.remove(i);</span>
+                    } else {
+<span class="nc" id="L484">                        squiggle.draw(this);</span>
+                    }
+<span class="nc" id="L486">                    squiggle.resetCollisionFlag();</span>
+                }
+            }
+
+<span class="fc bfc" id="L490" title="All 2 branches covered.">            for (Ball ball : balls) {</span>
+<span class="pc bpc" id="L491" title="1 of 4 branches missed.">                if (!isPaused &amp;&amp; !isLevelFailed) {</span>
+<span class="fc" id="L492">                    ball.tick();</span>
+                }
+
+<span class="pc bpc" id="L495" title="1 of 2 branches missed.">                for (int i = squiggles.size() - 1; i &gt;= 0; i--) {</span>
+<span class="nc" id="L496">                    Squiggle squiggle = squiggles.get(i);</span>
+<span class="nc bnc" id="L497" title="All 4 branches missed.">                    if (!squiggle.isRemoved() &amp;&amp; squiggle.isCollidingWithBall(ball)) {</span>
+<span class="nc" id="L498">                        squiggle.handleCollision(ball);</span>
+<span class="nc" id="L499">                        squiggle.pendingRemoval(); // Mark the squiggle as removed after collision</span>
+                    }
+                }
+<span class="fc" id="L502">                ball.draw(this, CELLSIZE, TOPBAR);</span>
+                // System.out.println(&quot;Squiggle &quot; + squiggles.size());
+<span class="fc" id="L504">            }</span>
+<span class="fc bfc" id="L505" title="All 2 branches covered.">        } else if (!isTimeUp) {</span>
+<span class="fc" id="L506">            isTimeUp = true; // Mark the level as finished</span>
+<span class="fc" id="L507">            startVictorySequence();</span>
+        }
+
+<span class="fc bfc" id="L510" title="All 2 branches covered.">        if (isLevelFailed) {</span>
+<span class="fc" id="L511">            timeUpMessage.draw(this);</span>
+        }
+
+<span class="fc bfc" id="L514" title="All 2 branches covered.">        if (isVictoryAnimationComplete) {</span>
+<span class="fc" id="L515">            checkVictoryAndLoadNextLevel(); // Load the next level</span>
+        }
+
+<span class="fc" id="L518">        drawTopBar(); // Ensure the top bar is drawn</span>
+
+<span class="pc bpc" id="L520" title="3 of 4 branches missed.">        if (isVictoryAnimationComplete &amp;&amp; isTimeDrained) {</span>
+<span class="nc bnc" id="L521" title="All 2 branches missed.">            if (currentLevel &gt;= config.getJSONArray(&quot;levels&quot;).size()) {</span>
+<span class="nc" id="L522">                endMessage.draw(this);</span>
+<span class="nc" id="L523">                isGameEnded = true;</span>
+            }
+        }
+<span class="fc" id="L526">    }</span>
+
+    void startVictorySequence() {
+<span class="pc bpc" id="L529" title="1 of 2 branches missed.">        if (victoryInProgress)</span>
+<span class="nc" id="L530">            return; // Prevent multiple triggers</span>
+
+<span class="fc" id="L532">        victoryInProgress = true;</span>
+<span class="fc" id="L533">        isTimeDraining = true;</span>
+<span class="fc" id="L534">        topLeftStep = 0;</span>
+<span class="fc" id="L535">        bottomRightStep = getPerimeterLength() / 2; // Opposite corner for the second tile</span>
+<span class="fc" id="L536">        scoreAtLevelStart = score; // Store current score before adding time bonus</span>
+<span class="fc" id="L537">        thread(&quot;drainTimeIntoScore&quot;); // Start the time draining process</span>
+        // thread(&quot;runVictoryAnimation&quot;); // Start the victory animation
+
+<span class="fc" id="L540">    }</span>
+
+    public void drainTimeIntoScore() {
+<span class="fc" id="L543">        int frameCounter = 0;</span>
+<span class="pc bpc" id="L544" title="1 of 4 branches missed.">        while (remainingTime &gt; 0 &amp;&amp; isTimeDraining) {</span>
+<span class="fc" id="L545">            synchronized (this) {</span>
+<span class="pc bpc" id="L546" title="1 of 2 branches missed.">                if (isPaused) {</span>
+                    try {
+<span class="nc" id="L548">                        wait(); // Pause the draining process</span>
+<span class="nc" id="L549">                    } catch (InterruptedException e) {</span>
+<span class="nc" id="L550">                        e.printStackTrace();</span>
+<span class="nc" id="L551">                    }</span>
+                }
+<span class="fc" id="L553">            }</span>
+
+            try {
+<span class="fc" id="L556">                Thread.sleep(67); // 0.067 seconds</span>
+<span class="nc" id="L557">            } catch (InterruptedException e) {</span>
+<span class="nc" id="L558">                e.printStackTrace();</span>
+<span class="fc" id="L559">            }</span>
+
+<span class="fc" id="L561">            frameCounter++;</span>
+
+<span class="fc bfc" id="L563" title="All 2 branches covered.">            if (frameCounter % 2 == 0) {</span>
+<span class="fc" id="L564">                remainingTime -= 30;</span>
+<span class="fc" id="L565">                score++;</span>
+            }
+
+        }
+<span class="fc" id="L569">        isTimeDraining = false;</span>
+<span class="fc" id="L570">        isTimeDrained = true;</span>
+<span class="fc" id="L571">        System.out.println(&quot;Time drained. Final Score: &quot; + score);</span>
+<span class="fc" id="L572">        checkVictoryAndLoadNextLevel();</span>
+
+<span class="fc" id="L574">    }</span>
+
+    void updateVictoryTiles() {
+<span class="pc bpc" id="L577" title="1 of 2 branches missed.">        if (isPaused)</span>
+<span class="nc" id="L578">            return;</span>
+<span class="fc" id="L579">        victoryframeCounter++; // Track frames to control tile movement</span>
+
+<span class="fc bfc" id="L581" title="All 2 branches covered.">        if (victoryframeCounter % 2 == 0) { // Move tiles every 2 frames (0.067 seconds)</span>
+<span class="fc" id="L582">            int perimeterLength = getPerimeterLength();</span>
+
+            // Increment the steps for both tiles
+<span class="fc" id="L585">            topLeftStep = (topLeftStep + 1) % perimeterLength;</span>
+<span class="fc" id="L586">            bottomRightStep = (bottomRightStep + 1) % perimeterLength;</span>
+
+            // Check if both tiles have returned to their original positions
+<span class="fc bfc" id="L589" title="All 2 branches covered.">            if (isTimeDrained) {</span>
+<span class="fc" id="L590">                isVictoryAnimationComplete = true;</span>
+<span class="fc" id="L591">                victoryInProgress = false;</span>
+<span class="fc" id="L592">                System.out.println(&quot;Victory animation complete!&quot;);</span>
+            }
+        }
+<span class="fc" id="L595">    }</span>
+
+    private void drawVictoryTiles() {
+<span class="fc" id="L598">        PImage yellowTile = getSprite(&quot;wall4&quot;); // Use yellow tile sprite</span>
+
+        // Get the positions for both tiles
+<span class="fc" id="L601">        int[] topLeftPos = getTilePosition(topLeftStep); // Top-left tile</span>
+<span class="fc" id="L602">        int[] bottomRightPos = getTilePosition(bottomRightStep); // Bottom-right tile</span>
+
+        // Draw the top-left tile
+<span class="fc" id="L605">        image(yellowTile,</span>
+                topLeftPos[0] * CELLSIZE,
+                topLeftPos[1] * CELLSIZE + TOPBAR,
+                CELLSIZE, CELLSIZE);
+
+        // Draw the bottom-right tile
+<span class="fc" id="L611">        image(yellowTile,</span>
+                bottomRightPos[0] * CELLSIZE,
+                bottomRightPos[1] * CELLSIZE + TOPBAR,
+                CELLSIZE, CELLSIZE);
+<span class="fc" id="L615">    }</span>
+
+    private int getPerimeterLength() {
+<span class="fc" id="L618">        int horizontalTiles = WIDTH / CELLSIZE;</span>
+<span class="fc" id="L619">        int verticalTiles = (HEIGHT - TOPBAR) / CELLSIZE;</span>
+<span class="fc" id="L620">        return 2 * (horizontalTiles + verticalTiles) - 4; // Exclude double-counted corners</span>
+    }
+
+    private int[] getTilePosition(int step) {
+<span class="fc" id="L624">        int horizontalTiles = WIDTH / CELLSIZE;</span>
+<span class="fc" id="L625">        int verticalTiles = (HEIGHT - TOPBAR) / CELLSIZE;</span>
+
+<span class="fc bfc" id="L627" title="All 2 branches covered.">        if (step &lt; horizontalTiles) { // Top edge</span>
+<span class="fc" id="L628">            return new int[] { step, 0 };</span>
+<span class="fc bfc" id="L629" title="All 2 branches covered.">        } else if (step &lt; horizontalTiles + verticalTiles - 1) { // Right edge</span>
+<span class="fc" id="L630">            return new int[] { horizontalTiles - 1, step - horizontalTiles + 1 };</span>
+<span class="fc bfc" id="L631" title="All 2 branches covered.">        } else if (step &lt; 2 * horizontalTiles + verticalTiles - 2) { // Bottom edge</span>
+<span class="fc" id="L632">            return new int[] { 2 * horizontalTiles + verticalTiles - 3 - step, verticalTiles - 1 };</span>
+        } else { // Left edge
+<span class="fc" id="L634">            return new int[] { 0, 2 * (horizontalTiles + verticalTiles) - 4 - step };</span>
+        }
+    }
+
+    private synchronized void checkVictoryAndLoadNextLevel() {
+<span class="pc bpc" id="L639" title="1 of 4 branches missed.">        if (isTimeDrained &amp;&amp; isVictoryAnimationComplete) {</span>
+<span class="fc" id="L640">            loadNextLevel();</span>
+        }
+<span class="fc" id="L642">    }</span>
+
+    void loadNextLevel() {
+<span class="fc" id="L645">        currentLevel++;</span>
+        // System.out.println(&quot;Levels size is &quot; + config.getJSONArray(&quot;levels&quot;).size() +
+        // &quot; and current level is &quot; + currentLevel);
+<span class="fc bfc" id="L648" title="All 2 branches covered.">        if (currentLevel &lt;= config.getJSONArray(&quot;levels&quot;).size()) {</span>
+<span class="fc" id="L649">            System.out.println(&quot;Level loaded: &quot; + currentLevel);</span>
+<span class="fc" id="L650">            setup(); // Reset and load the next level</span>
+        } else {
+<span class="fc" id="L652">            println(&quot;Congratulations! All levels completed.&quot;);</span>
+<span class="fc" id="L653">            victoryInProgress = false; // Stop interactions with the game</span>
+<span class="fc" id="L654">            isTimeDraining = false; // Stop any ongoing processes</span>
+        }
+<span class="fc" id="L656">    }</span>
+
+    private void drawTopBar() {
+<span class="fc" id="L659">        pushStyle(); // save current stroke and stroke weight settings</span>
+        // Add black background for ball queue and timer
+<span class="fc" id="L661">        fill(0);</span>
+<span class="fc" id="L662">        drawBallQueue();</span>
+        // Display the score and time:
+<span class="fc" id="L664">        fill(0); // black text</span>
+<span class="fc" id="L665">        textSize(20);</span>
+<span class="fc" id="L666">        textAlign(RIGHT, TOP); // Align to the top-right corner</span>
+        // Calculate X position for the top-right corner
+<span class="fc" id="L668">        int scoreX = WIDTH - 10; // 10px padding from the right edge</span>
+<span class="fc" id="L669">        int scoreY = 10; // 10px from the top</span>
+        // Draw score directly above the timer
+<span class="fc" id="L671">        text(&quot;Score: &quot; + score, scoreX, scoreY); // Display score</span>
+<span class="fc" id="L672">        text(&quot;Time: &quot; + (remainingTime / FPS) + &quot;s&quot;, scoreX, scoreY + 25); // Display timer below the score</span>
+<span class="fc" id="L673">    }</span>
+
+    private void drawBallQueue() {
+<span class="fc" id="L676">        int blackRectEnd = 154;</span>
+<span class="fc" id="L677">        int blackRectY = 15;</span>
+<span class="fc" id="L678">        int blackRectLeft = 15;</span>
+<span class="fc" id="L679">        int blackRectHeight = TOPBAR - 30;</span>
+<span class="fc" id="L680">        rect(blackRectLeft, blackRectY, blackRectEnd, blackRectHeight);</span>
+<span class="fc" id="L681">        clip(blackRectLeft, blackRectY, blackRectEnd, blackRectHeight);</span>
+
+        // Display up to 5 balls from the spawn queue
+<span class="fc" id="L684">        int xPos = 20; // Start position for ball display</span>
+<span class="fc" id="L685">        int ballSize = 24; // 24 diameter = 12 radius</span>
+<span class="fc" id="L686">        int ballSpacing = 30;</span>
+
+<span class="fc bfc" id="L688" title="All 2 branches covered.">        for (int i = 0; i &lt; ballSpawnQueue.size(); i++) {</span>
+<span class="fc" id="L689">            String ballColor = ballSpawnQueue.get(i);</span>
+<span class="fc" id="L690">            int colorIndex = spawners.get(0).getColorIndex(ballColor);</span>
+<span class="fc" id="L691">            PImage ballSprite = getSprite(&quot;ball&quot; + colorIndex);</span>
+
+            // If it is the leftmost ball and sliding, make it transparent
+<span class="fc bfc" id="L694" title="All 4 branches covered.">            if (i == 0 &amp;&amp; isShifting) {</span>
+<span class="fc" id="L695">                tint(255, 255, 255, 0); // Full transparency for the leftmost ball</span>
+            } else {
+<span class="fc" id="L697">                noTint(); // Reset to full opacity for other balls</span>
+            }
+
+            // During sliding, gradually shift the balls left
+<span class="fc bfc" id="L701" title="All 2 branches covered.">            if (isShifting) {</span>
+<span class="fc" id="L702">                image(ballSprite, xPos - (int) offsetX, 20, ballSize, ballSize);</span>
+            } else {
+<span class="fc" id="L704">                image(ballSprite, xPos, 20, ballSize, ballSize);</span>
+            }
+
+<span class="fc" id="L707">            noTint();</span>
+            // image(ballSprite, xPos - (int) offsetX, 20, ballSize, ballSize);
+<span class="fc" id="L709">            xPos += ballSpacing; // Spacing between each ball</span>
+        }
+
+        // Update offsetX to animate the gradual leftward movement, only if shifting
+<span class="fc bfc" id="L713" title="All 6 branches covered.">        if (!isPaused &amp;&amp; !isLevelFailed &amp;&amp; isShifting) {</span>
+<span class="fc" id="L714">            offsetX += 1; // Move by 1 pixel per frame</span>
+
+            // If offsetX reaches the full ball spacing, stop shifting
+<span class="fc bfc" id="L717" title="All 2 branches covered.">            if (offsetX &gt;= ballSpacing) {</span>
+<span class="fc" id="L718">                isShifting = false; // Stop shifting until the next spawn</span>
+<span class="fc" id="L719">                offsetX = 0; // Reset for the next shift</span>
+
+<span class="fc" id="L721">                ballSpawnQueue.remove(0);</span>
+            }
+        }
+<span class="fc" id="L724">        popStyle(); // restore previous stroke and stroke weight settings</span>
+<span class="fc" id="L725">        noClip();</span>
+
+        // Display the SPAWNTIMER as a countdown, stop showing after all balls are
+        // spawned
+<span class="fc bfc" id="L729" title="All 4 branches covered.">        if (!ballSpawnQueue.isEmpty() &amp;&amp; !isLevelFailed) {</span>
+<span class="fc" id="L730">            fill(0);</span>
+<span class="fc" id="L731">            textSize(20);</span>
+<span class="fc" id="L732">            text(String.format(&quot;%.1f&quot;, (float) SPAWNTIMER / FPS), blackRectEnd + 55, 22); // Timer next to ball queue</span>
+        }
+<span class="fc" id="L734">    }</span>
+
+    private void drawBoard() { // Loop over the board[][] array and assign sprites based on the character.
+<span class="fc bfc" id="L737" title="All 2 branches covered.">        for (int row = 0; row &lt; board.length; row++) {</span>
+<span class="fc bfc" id="L738" title="All 2 branches covered.">            for (int col = 0; col &lt; board[row].length; col++) {</span>
+<span class="fc" id="L739">                char tileChar = board[row][col];</span>
+<span class="fc" id="L740">                PImage sprite = null;</span>
+<span class="fc" id="L741">                final int currentRow = row; // Capture row into a final variable</span>
+<span class="fc" id="L742">                final int currentCol = col;</span>
+
+                // Skip timed tiles since they are drawn separately
+<span class="fc bfc" id="L745" title="All 4 branches covered.">                boolean isTimed = timedTiles.stream().anyMatch(t -&gt; t.getX() == currentCol &amp;&amp; t.getY() == currentRow);</span>
+<span class="fc bfc" id="L746" title="All 2 branches covered.">                if (isTimed)</span>
+<span class="fc" id="L747">                    continue;</span>
+
+<span class="pc bpc" id="L749" title="1 of 9 branches missed.">                switch (tileChar) {</span>
+                    case 'X': // Wall type 0
+<span class="fc" id="L751">                        sprite = sprites.get(&quot;wall0&quot;);</span>
+<span class="fc" id="L752">                        break;</span>
+                    case '1': // Wall type 1
+<span class="fc" id="L754">                        sprite = sprites.get(&quot;wall1&quot;);</span>
+<span class="fc" id="L755">                        break;</span>
+                    case '2': // Wall type 2
+<span class="fc" id="L757">                        sprite = sprites.get(&quot;wall2&quot;);</span>
+<span class="fc" id="L758">                        break;</span>
+                    case '3': // Wall type 3
+<span class="fc" id="L760">                        sprite = sprites.get(&quot;wall3&quot;);</span>
+<span class="fc" id="L761">                        break;</span>
+                    case '4': // Wall type 4
+<span class="fc" id="L763">                        sprite = sprites.get(&quot;wall4&quot;);</span>
+<span class="fc" id="L764">                        break;</span>
+                    case 'S': // Spawner
+<span class="fc" id="L766">                        sprite = sprites.get(&quot;entrypoint&quot;);</span>
+<span class="fc" id="L767">                        break;</span>
+                    case 'H': // Hole (Top-left part of a 2x2 hole)
+<span class="fc" id="L769">                        sprite = sprites.get(&quot;hole0&quot;);</span>
+<span class="fc" id="L770">                        break;</span>
+                    case 'B': // Ball (Initially placed on board)
+<span class="nc" id="L772">                        sprite = sprites.get(&quot;tile&quot;);</span>
+<span class="nc" id="L773">                        break;</span>
+                    case ' ':
+                    default: // Empty space
+<span class="fc" id="L776">                        sprite = sprites.get(&quot;tile&quot;);</span>
+                        break;
+                }
+
+                // Draw the sprite
+<span class="pc bpc" id="L781" title="1 of 2 branches missed.">                if (sprite != null) {</span>
+<span class="fc" id="L782">                    image(sprite, col * CELLSIZE, row * CELLSIZE + TOPBAR, CELLSIZE, CELLSIZE);</span>
+                }
+            }
+        }
+<span class="fc" id="L786">    }</span>
+
+    void handleSpawning() {
+<span class="fc bfc" id="L789" title="All 4 branches covered.">        if (isPaused || isLevelFailed)</span>
+<span class="fc" id="L790">            return; // Skip spawning if the game is paused</span>
+<span class="fc" id="L791">        SPAWNTIMER--;</span>
+<span class="pc bpc" id="L792" title="1 of 6 branches missed.">        if (SPAWNTIMER &lt;= 0 &amp;&amp; !ballSpawnQueue.isEmpty() &amp;&amp; !isShifting) {</span>
+            // Reset offsetX to begin a new sliding animation
+<span class="fc" id="L794">            offsetX = 0;</span>
+<span class="fc" id="L795">            isShifting = true;</span>
+<span class="fc" id="L796">            Random random = new Random();</span>
+<span class="fc" id="L797">            Spawner randomSpawner = spawners.get(random.nextInt(spawners.size()));</span>
+<span class="fc" id="L798">            String ballColor = ballSpawnQueue.get(0);</span>
+
+            // System.out.println(ballSpawnQueue);
+            // Calculate the center of the spawner
+<span class="fc" id="L802">            float centerX = randomSpawner.getX() * CELLSIZE + CELLSIZE / 2;</span>
+<span class="fc" id="L803">            float centerY = randomSpawner.getY() * CELLSIZE + CELLSIZE / 2 + TOPBAR;</span>
+
+<span class="fc" id="L805">            int colorIndex = randomSpawner.getColorIndex(ballColor);</span>
+<span class="fc" id="L806">            PImage ballSprite = getSprite(&quot;ball&quot; + colorIndex);</span>
+
+<span class="fc bfc" id="L808" title="All 2 branches covered.">            float randomDx = Math.random() &lt; 0.5 ? -2 : 2;</span>
+<span class="fc bfc" id="L809" title="All 2 branches covered.">            float randomDy = Math.random() &lt; 0.5 ? -2 : 2;</span>
+<span class="fc" id="L810">            balls.add(new Ball(centerX, centerY, randomDx, randomDy, ballSprite, colorIndex, this));</span>
+<span class="fc" id="L811">            SPAWNTIMER = SPAWNINTERVAL * FPS;</span>
+        }
+<span class="fc" id="L813">    }</span>
+
+    public static void main(String[] args) {
+<span class="nc" id="L816">        PApplet.main(&quot;inkball.App&quot;);</span>
+<span class="nc" id="L817">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.9.202303310957</span></div></body></html>

@@ -1,0 +1,258 @@
+<?xml version="1.0" encoding="UTF-8"?><!DOCTYPE html PUBLIC "-//W3C//DTD XHTML 1.0 Strict//EN" "http://www.w3.org/TR/xhtml1/DTD/xhtml1-strict.dtd"><html xmlns="http://www.w3.org/1999/xhtml" lang="en"><head><meta http-equiv="Content-Type" content="text/html;charset=UTF-8"/><link rel="stylesheet" href="../jacoco-resources/report.css" type="text/css"/><link rel="shortcut icon" href="../jacoco-resources/report.gif" type="image/gif"/><title>Ball.java</title><link rel="stylesheet" href="../jacoco-resources/prettify.css" type="text/css"/><script type="text/javascript" src="../jacoco-resources/prettify.js"></script></head><body onload="window['PR_TAB_WIDTH']=4;prettyPrint()"><div class="breadcrumb" id="breadcrumb"><span class="info"><a href="../jacoco-sessions.html" class="el_session">Sessions</a></span><a href="../index.html" class="el_report">inkball_refactor_A3_LASTWORKING</a> &gt; <a href="index.source.html" class="el_package">inkball</a> &gt; <span class="el_source">Ball.java</span></div><h1>Ball.java</h1><pre class="source lang-java linenums">package inkball;
+
+import processing.core.PApplet;
+import processing.core.PImage;
+
+public class Ball implements GameObject {
+    private static final int MIN_X = 0;
+    private static final int MIN_Y = App.TOPBAR;
+    private static final float MAX_SPEED = 5.0f;
+    private static final float MIN_SPEED = 0.1f;
+<span class="fc" id="L11">    private static float DEFAULT_RADIUS = 12;</span>
+    private static final float BALLSIZE_THRESH = 3; // Threshold below which ball counts as captured
+    private static final float DIST_THRESH = 15; // Distance threshold for capturing the ball
+
+<span class="fc" id="L15">    private static float ATTRACTION_RADIUS = 32;</span>
+<span class="fc" id="L16">    private static float ATTRACTION_FORCE = 0.005f; // 0.5% attraction force</span>
+
+    private float radius;
+    private float x, y;
+    private float dx, dy;
+    private PImage ballSprite;
+    private int colorIndex;
+<span class="fc" id="L23">    private double EPSILON = 0.00001;</span>
+<span class="fc" id="L24">    private boolean isCaptured = false;</span>
+    private App app;
+
+<span class="fc" id="L27">    public Ball(float startX, float startY, float speedX, float speedY, PImage ballSprite, int colorIndex, App app) {</span>
+<span class="fc" id="L28">        this.radius = DEFAULT_RADIUS;</span>
+<span class="fc" id="L29">        this.x = startX;</span>
+<span class="fc" id="L30">        this.y = startY;</span>
+<span class="fc" id="L31">        this.dx = speedX;</span>
+<span class="fc" id="L32">        this.dy = speedY;</span>
+<span class="fc" id="L33">        this.ballSprite = ballSprite;</span>
+<span class="fc" id="L34">        this.app = app;</span>
+<span class="fc" id="L35">        this.colorIndex = colorIndex; // Default to grey</span>
+<span class="fc" id="L36">    }</span>
+
+    private float handleCollision(float velocity, float pos, int col, int row, boolean isHorizontal) {
+        // Determine the part of the ball boundary in the dir of movement.
+        float frontEdge;
+<span class="fc bfc" id="L41" title="All 2 branches covered.">        if (velocity &gt; 0) {</span>
+<span class="fc" id="L42">            frontEdge = pos + radius; // moving 'forward' (right or down)</span>
+        } else {
+<span class="fc" id="L44">            frontEdge = pos - radius; // moving 'backward' (left or up)</span>
+        }
+
+        // Identify the target tile based on the dir of movement
+        int targetCol;
+        int targetRow;
+<span class="fc bfc" id="L50" title="All 2 branches covered.">        if (isHorizontal) {</span>
+<span class="fc" id="L51">            targetCol = getColumn(frontEdge);</span>
+<span class="fc" id="L52">            targetRow = row;</span>
+        } else {
+<span class="fc" id="L54">            targetCol = col;</span>
+<span class="fc" id="L55">            targetRow = getRow(frontEdge);</span>
+        }
+        // Flip the velocity if there is a collision with a wall:
+<span class="fc bfc" id="L58" title="All 2 branches covered.">        if (isWall(targetCol, targetRow)) {</span>
+            // Change color based on wall color
+<span class="fc" id="L60">            char tileChar = app.board[targetRow][targetCol];</span>
+<span class="fc" id="L61">            changeColor(tileChar);</span>
+<span class="fc" id="L62">            return -velocity;</span>
+        }
+<span class="fc" id="L64">        return velocity;</span>
+    }
+
+    public void attractToHole(Hole hole) {
+<span class="fc" id="L68">        float holeCenterX = hole.getCenterX(app);</span>
+<span class="fc" id="L69">        float holeCenterY = hole.getCenterY(app);</span>
+
+        // Calculate the vector from the ball to the hole's center
+<span class="fc" id="L72">        float dx = holeCenterX - x;</span>
+<span class="fc" id="L73">        float dy = holeCenterY - y;</span>
+
+        // Calculate the distance between the ball and the hole's center
+<span class="fc" id="L76">        float distance = PApplet.dist(x, y, holeCenterX, holeCenterY);</span>
+
+        // Apply attraction if the ball is within 32 pixels
+<span class="fc bfc" id="L79" title="All 2 branches covered.">        if (distance &lt;= ATTRACTION_RADIUS) {</span>
+            // Calculate the attraction force (0.5% of the vector)
+<span class="fc" id="L81">            float attractionX = ATTRACTION_FORCE * dx;</span>
+<span class="fc" id="L82">            float attractionY = ATTRACTION_FORCE * dy;</span>
+
+            // Add the attraction force to the ball's velocity
+<span class="fc" id="L85">            this.dx += attractionX;</span>
+<span class="fc" id="L86">            this.dy += attractionY;</span>
+
+            // Shrink the ball proportionally to the distance
+<span class="fc" id="L89">            float shrinkFactor = PApplet.map(distance, 0, App.CELLSIZE, 0.2f, 1);</span>
+<span class="fc" id="L90">            this.radius = Ball.DEFAULT_RADIUS * shrinkFactor;</span>
+
+            // Check if the ball is captured (aligned with the hole or shrunk below a size)
+<span class="pc bpc" id="L93" title="1 of 4 branches missed.">            if (distance &lt; DIST_THRESH || this.radius &lt; BALLSIZE_THRESH) {</span>
+                // Capture the ball: Remove it from the game
+<span class="fc" id="L95">                app.balls.remove(this);</span>
+<span class="fc" id="L96">                handleCapture(hole);</span>
+            }
+        }
+<span class="fc" id="L99">    }</span>
+
+    private void handleCapture(Hole hole) {
+<span class="fc" id="L102">        int holeColorIndex = hole.getColorIndex(); // Get the hole's color</span>
+
+<span class="pc bpc" id="L104" title="2 of 6 branches missed.">        boolean isValidCapture = (colorIndex == holeColorIndex || colorIndex == 0 || holeColorIndex == 0);</span>
+
+<span class="fc bfc" id="L106" title="All 2 branches covered.">        if (isValidCapture) {</span>
+            // Successful capture
+<span class="fc" id="L108">            int scoreIncrease = app.getScoreIncrease(colorIndex);</span>
+<span class="fc" id="L109">            app.addScore(scoreIncrease);</span>
+<span class="fc" id="L110">            app.balls.remove(this); // Remove the ball from the game</span>
+<span class="fc" id="L111">        } else {</span>
+            // Unsuccessful capture
+<span class="fc" id="L113">            int scoreDecrease = app.getScoreDecrease(colorIndex);</span>
+<span class="fc" id="L114">            app.subtractScore(scoreDecrease);</span>
+<span class="fc" id="L115">            app.requeueBall(colorIndex); // Re-add the ball to the queue</span>
+<span class="fc" id="L116">            app.balls.remove(this); // Remove the ball from active play</span>
+        }
+
+<span class="fc" id="L119">    }</span>
+
+    void capVelocity() {
+        // Ensure the velocity does not exceed the max speed
+<span class="fc" id="L123">        float speed = PApplet.sqrt(dx * dx + dy * dy);</span>
+<span class="pc bpc" id="L124" title="1 of 2 branches missed.">        if (speed &gt; MAX_SPEED) {</span>
+<span class="nc" id="L125">            float scalingFactor = MAX_SPEED / speed;</span>
+<span class="nc" id="L126">            dx *= scalingFactor;</span>
+<span class="nc" id="L127">            dy *= scalingFactor;</span>
+        }
+        // Prevent the ball from freezing at extremely low speeds
+<span class="pc bpc" id="L130" title="1 of 2 branches missed.">        if (speed &lt; MIN_SPEED) {</span>
+<span class="nc" id="L131">            dx = Math.signum(dx) * MIN_SPEED;</span>
+<span class="nc" id="L132">            dy = Math.signum(dy) * MIN_SPEED;</span>
+        }
+<span class="fc" id="L134">    }</span>
+
+    // Getters:
+    public float getX() {
+<span class="fc" id="L138">        return x;</span>
+    }
+
+    public float getY() {
+<span class="fc" id="L142">        return y;</span>
+    }
+
+    public float getDx() {
+<span class="fc" id="L146">        return dx;</span>
+    }
+
+    public float getDy() {
+<span class="fc" id="L150">        return dy;</span>
+    }
+
+    public float getRadius() {
+<span class="fc" id="L154">        return radius;</span>
+    }
+
+    public float getMaxSpeed() {
+<span class="nc" id="L158">        return MAX_SPEED;</span>
+    }
+
+    public int getColorIndex() {
+<span class="nc" id="L162">        return colorIndex;</span>
+    }
+
+    private int getColumn(float pos) {
+<span class="fc" id="L166">        return PApplet.constrain((int) (pos / App.CELLSIZE), 0, App.WIDTH - 1);</span>
+    }
+
+    private int getRow(float pos) {
+<span class="fc" id="L170">        return PApplet.constrain((int) ((pos - App.TOPBAR) / App.CELLSIZE), 0, App.HEIGHT - 1);</span>
+    }
+
+    private boolean isWall(int col, int row) {
+<span class="pc bpc" id="L174" title="4 of 8 branches missed.">        if (col &lt; 0 || col &gt;= app.board[0].length || row &lt; 0 || row &gt;= app.board.length) {</span>
+<span class="nc" id="L175">            return false; // Out of bounds</span>
+        }
+
+<span class="fc" id="L178">        char tile = app.board[row][col];</span>
+
+        // Check for a regular wall or a timed tile
+<span class="fc bfc" id="L181" title="All 6 branches covered.">        if (tile == 'X' || (tile &gt;= '1' &amp;&amp; tile &lt;= '4')) {</span>
+<span class="fc" id="L182">            return true;</span>
+        }
+
+        // Check if the tile is a timed tile and still active
+<span class="fc bfc" id="L186" title="All 2 branches covered.">        for (TimedTile timedTile : app.timedTiles) {</span>
+<span class="pc bpc" id="L187" title="1 of 6 branches missed.">            if (timedTile.getX() == col &amp;&amp; timedTile.getY() == row &amp;&amp; timedTile.isActive()) {</span>
+<span class="fc" id="L188">                return true;</span>
+            }
+<span class="fc" id="L190">        }</span>
+
+<span class="fc" id="L192">        return false;</span>
+    }
+
+    // Mutators:
+    public void setDx(float dx) {
+<span class="fc" id="L197">        this.dx = dx;</span>
+<span class="fc" id="L198">    }</span>
+
+    public void setDy(float dy) {
+<span class="fc" id="L201">        this.dy = dy;</span>
+<span class="fc" id="L202">    }</span>
+
+    public void setRadius(float radius) {
+<span class="fc" id="L205">        this.radius = radius;</span>
+<span class="fc" id="L206">    }</span>
+
+    private void moveIfNoCollision(float currX, float currY) {
+<span class="pc bpc" id="L209" title="1 of 2 branches missed.">        if (Math.abs(dx) &lt; EPSILON) {</span>
+<span class="nc" id="L210">            x = currX; // Restore previous X position if there's no horizontal movement</span>
+        }
+<span class="pc bpc" id="L212" title="1 of 2 branches missed.">        if (Math.abs(dy) &lt; EPSILON) {</span>
+<span class="nc" id="L213">            y = currY; // Restore previous Y position if there's no vertical movement</span>
+        }
+<span class="fc" id="L215">    }</span>
+
+    private void checkScreenEdgeCollision() {
+<span class="pc bpc" id="L218" title="2 of 4 branches missed.">        if (x - radius &lt; MIN_X || x + radius &gt; App.WIDTH) {</span>
+<span class="nc" id="L219">            dx *= -1;</span>
+        }
+<span class="pc bpc" id="L221" title="2 of 4 branches missed.">        if (y - radius &lt; MIN_Y || y + radius &gt; App.HEIGHT) {</span>
+<span class="nc" id="L222">            dy *= -1;</span>
+        }
+<span class="fc" id="L224">    }</span>
+
+    private void changeColor(char tile) {
+<span class="pc bpc" id="L227" title="1 of 4 branches missed.">        if (tile &gt;= '1' &amp;&amp; tile &lt;= '4') {</span>
+<span class="fc" id="L228">            colorIndex = Character.getNumericValue(tile);</span>
+<span class="fc" id="L229">            ballSprite = app.getSprite(&quot;ball&quot; + colorIndex); // Update the sprite</span>
+        }
+<span class="fc" id="L231">    }</span>
+
+    public void tick() {
+<span class="pc bpc" id="L234" title="1 of 2 branches missed.">        if (isCaptured)</span>
+<span class="nc" id="L235">            return; // Stop if captured</span>
+        // Regular movement logic
+<span class="fc" id="L237">        x += dx;</span>
+<span class="fc" id="L238">        y += dy;</span>
+<span class="fc" id="L239">        float currX = x;</span>
+<span class="fc" id="L240">        float currY = y;</span>
+<span class="fc" id="L241">        int col = getColumn(x);</span>
+<span class="fc" id="L242">        int row = getRow(y);</span>
+
+<span class="fc" id="L244">        dx = handleCollision(dx, x, col, row, true);</span>
+<span class="fc" id="L245">        dy = handleCollision(dy, y, col, row, false);</span>
+
+<span class="fc" id="L247">        moveIfNoCollision(currX, currY);</span>
+<span class="fc" id="L248">        checkScreenEdgeCollision();</span>
+<span class="fc" id="L249">        capVelocity();</span>
+<span class="fc" id="L250">    }</span>
+
+    public void draw(PApplet app, int cellSize, int topBar) {
+<span class="pc bpc" id="L253" title="1 of 2 branches missed.">        if (!isCaptured) {</span>
+<span class="fc" id="L254">            app.image(ballSprite, x - radius, y - radius, radius * 2, radius * 2);</span>
+        }
+<span class="fc" id="L256">    }</span>
+}
+</pre><div class="footer"><span class="right">Created with <a href="http://www.jacoco.org/jacoco">JaCoCo</a> 0.8.9.202303310957</span></div></body></html>
