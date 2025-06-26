@@ -1,6 +1,6 @@
 # Inkball
 
-Welcome to Inkball, the classic Microsoft XP game that I recreated using Java's Processing library. I made this game to learn Java and Object-Oriented programming for an INFO1113 assignment. 
+Welcome to Inkball, the classic Microsoft XP game that I recreated using Java's Processing library. I made this game to learn Java and Object-Oriented programming.
 
 ## Features
 - **Player-drawn lines** to redirect balls.
