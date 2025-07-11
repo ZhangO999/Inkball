@@ -26,4 +26,5 @@ The objective of the game is very simple - guide balls into matching holes using
 - Level elements can be edited via the respective level.txt files. 
 - Level settings, i.e., level duration, spawn timer, can be adjusted in config.json.
 
-N.B: Make sure to disable all the test scripts before running. (via 'gradle build' in the terminal)
+N.B: Make sure to disable all the test scripts before building (via 'gradle build' in the terminal). 
+- Run the program via 'gradle run' after building
